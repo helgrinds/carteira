@@ -133,6 +133,9 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
 .fab{position:fixed;bottom:22px;right:18px;width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 14px rgba(0,157,152,.4);z-index:150;display:flex;align-items:center;justify-content:center}
 .fab:active{transform:scale(.93)}
 .hidden{display:none!important}
+.subtabs{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border);border-radius:var(--rs);overflow:hidden}
+.stab{flex:1;padding:9px 4px;font-size:13px;font-weight:600;border:none;background:var(--surface);color:var(--muted);cursor:pointer}
+.stab.on{background:var(--primary);color:#fff}
 </style>
 </head>
 <body>
@@ -204,8 +207,18 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
 
   <!-- CONTAS -->
   <div id="pg-contas" class="pg">
-    <div id="lista-contas"></div>
-    <button class="btn btn-o btn-fw" onclick="abrirModalConta()">+ Nova conta</button>
+    <div class="subtabs">
+      <button class="stab on" id="stab-contas" onclick="showSubtab('contas')">Contas</button>
+      <button class="stab" id="stab-cats" onclick="showSubtab('cats')">Categorias</button>
+    </div>
+    <div id="sub-contas">
+      <div id="lista-contas"></div>
+      <button class="btn btn-o btn-fw" onclick="abrirModalConta()">+ Nova conta</button>
+    </div>
+    <div id="sub-cats" class="hidden">
+      <div id="lista-cats"></div>
+      <button class="btn btn-o btn-fw" onclick="abrirModalCat()">+ Nova categoria</button>
+    </div>
   </div>
 
   <!-- RESUMO -->
@@ -214,6 +227,7 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
     <div class="chips" id="resumo-chips"></div>
     <div class="card" id="resumo-bal"></div>
     <div class="slbl">Gastos por categoria</div>
+    <div class="card" id="resumo-donut" style="display:flex;flex-direction:column;align-items:center;padding:20px 14px 14px"></div>
     <div class="card" id="resumo-cat"></div>
     <div class="slbl">Income por fonte</div>
     <div class="card" id="resumo-inc"></div>
@@ -286,6 +300,37 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
   </div>
 </div>
 
+<!-- MODAL EDITAR CONTA -->
+<div class="moverlay" id="m-editar-conta">
+  <div class="modal">
+    <div class="modal-t">Editar conta</div>
+    <div class="fld"><label>Nome</label><input type="text" id="ec-nome" placeholder="Ex: Conta corrente"></div>
+    <div class="fld"><label>Referência (opcional)</label><input type="text" id="ec-num" placeholder="Ex: **** 5450"></div>
+    <input type="hidden" id="ec-id">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-o" style="flex:1" onclick="fechar('m-editar-conta')">Cancelar</button>
+      <button class="btn btn-p" style="flex:1" onclick="guardarEditarConta()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CATEGORIA -->
+<div class="moverlay" id="m-cat">
+  <div class="modal">
+    <div class="modal-t" id="cat-titulo">Nova categoria</div>
+    <div class="fld"><label>Nome</label><input type="text" id="cat-nome" placeholder="Ex: Viagens"></div>
+    <div class="fld">
+      <label>Cor</label>
+      <div id="cat-cores" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+    </div>
+    <input type="hidden" id="cat-id">
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-o" style="flex:1" onclick="fechar('m-cat')">Cancelar</button>
+      <button class="btn btn-p" style="flex:1" onclick="guardarCat()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async></script>
 
@@ -298,9 +343,9 @@ const SCOPES     = 'https://www.googleapis.com/auth/drive.file https://www.googl
 const FILE_NAME  = 'carteira_dados.json';
 
 /* ================================================================
-   CATEGORIAS
+   CATEGORIAS — defaults (se E.cats não existir ainda)
    ================================================================ */
-const CATS = [
+const CATS_DEFAULT = [
   {id:'alimentacao',nome:'Alimentação',cor:'#009D98',cl:'#e0f5f5'},
   {id:'transporte', nome:'Transporte', cor:'#ba7517',cl:'#faeeda'},
   {id:'saude',      nome:'Saúde',      cor:'#3b6d11',cl:'#eaf3de'},
@@ -310,11 +355,12 @@ const CATS = [
   {id:'educacao',   nome:'Educação',   cor:'#0f6e56',cl:'#e1f5ee'},
   {id:'outros',     nome:'Outros',     cor:'#5f5e5a',cl:'#f1efe8'},
 ];
+function CATS(){ return E.cats || CATS_DEFAULT; }
 
 /* ================================================================
    ESTADO
    ================================================================ */
-let E = { contas:[], txs:[] };
+let E = { contas:[], txs:[], cats:[] };
 let driveFileId  = null;   /* ID do ficheiro no Drive */
 let accessToken  = null;
 let saveTimer    = null;
@@ -443,7 +489,8 @@ async function loadFromDrive() {
       const r    = await driveRequest(
         `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {method:'GET'});
       const text = await r.text();
-      try { E = JSON.parse(text); } catch { E = {contas:[],txs:[]}; }
+      try { E = JSON.parse(text); } catch { E = {contas:[],txs:[],cats:[]}; }
+      if (!E.cats) E.cats = JSON.parse(JSON.stringify(CATS_DEFAULT));
       toast('Dados carregados ✓');
     }
   } catch(e) {
@@ -517,7 +564,7 @@ function toast(msg) {
    UTILS
    ================================================================ */
 function fmt(v){ return v.toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
-function catById(id){ return CATS.find(c=>c.id===id)||CATS[CATS.length-1]; }
+function catById(id){ return CATS().find(c=>c.id===id)||CATS()[CATS().length-1]; }
 function contaById(id){ return E.contas.find(c=>c.id===id); }
 function hoje(){
   const d=new Date();
@@ -629,10 +676,37 @@ function renderContas(){
         <div style="font-size:21px;font-weight:700;color:var(--primary)">${fmt(c.saldo)}</div>
       </div>
       <div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">
+        <button class="btn btn-o btn-sm" onclick="abrirEditarConta('${c.id}')">Editar</button>
         <button class="btn btn-o btn-sm" onclick="abrirAjuste('${c.id}')">Ajustar saldo</button>
         <button class="btn btn-d btn-sm" onclick="apagarConta('${c.id}')">Apagar</button>
       </div>
     </div>`).join('');
+  /* render categorias */
+  renderCats();
+}
+
+function renderCats(){
+  const el=document.getElementById('lista-cats');
+  if(!el) return;
+  const cats=CATS();
+  if(!cats.length){el.innerHTML='<div class="empty">Sem categorias.</div>';return;}
+  el.innerHTML=cats.map(c=>`
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:14px;height:14px;border-radius:50%;background:${c.cor};flex-shrink:0"></div>
+        <div style="flex:1;font-weight:600;font-size:14px">${c.nome}</div>
+        <button class="btn btn-o btn-sm" onclick="abrirEditarCat('${c.id}')">Editar</button>
+        <button class="btn btn-d btn-sm" onclick="apagarCat('${c.id}')">Apagar</button>
+      </div>
+    </div>`).join('');
+}
+
+function showSubtab(t){
+  document.getElementById('sub-contas').classList.toggle('hidden', t!=='contas');
+  document.getElementById('sub-cats').classList.toggle('hidden',   t!=='cats');
+  document.getElementById('stab-contas').classList.toggle('on', t==='contas');
+  document.getElementById('stab-cats').classList.toggle('on',   t==='cats');
+  if(t==='cats') renderCats();
 }
 
 /* ================================================================
@@ -674,17 +748,51 @@ function renderResumo(){
         </div>
       </div>
     </div>`;
-  /* categorias */
+  /* gráfico circular + lista categorias */
   const gastos=txsFilt.filter(t=>t.tipo==='saida');
+  const elDonut=document.getElementById('resumo-donut');
   const elCat=document.getElementById('resumo-cat');
-  if(!gastos.length){elCat.innerHTML='<div class="empty">Sem gastos.</div>';}
-  else{
+  if(!gastos.length){
+    elDonut.innerHTML='<div class="empty">Sem gastos.</div>';
+    elCat.innerHTML='';
+  } else {
     const tot={};gastos.forEach(t=>{tot[t.cat]=(tot[t.cat]||0)+t.valor;});
+    const totalG=Object.values(tot).reduce((a,b)=>a+b,0);
     const maxC=Math.max(...Object.values(tot));
-    elCat.innerHTML=Object.entries(tot).sort((a,b)=>b[1]-a[1]).map(([id,v])=>{
+    const entries=Object.entries(tot).sort((a,b)=>b[1]-a[1]);
+    /* SVG donut */
+    const R=80, CX=100, CY=100, stroke=36;
+    const circ=2*Math.PI*R;
+    let offset=0;
+    const slices=entries.map(([id,v])=>{
+      const cat=catById(id);
+      const pct=v/totalG;
+      const dash=pct*circ;
+      const slice=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${cat.cor}"
+        stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${(circ-dash).toFixed(2)}"
+        stroke-dashoffset="${(-offset*circ+circ/4).toFixed(2)}"
+        style="transition:stroke-dashoffset .4s"/>`;
+      offset+=pct;
+      return slice;
+    }).join('');
+    elDonut.innerHTML=`
+      <svg viewBox="0 0 200 200" width="180" height="180" style="overflow:visible">
+        <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#eee" stroke-width="${stroke}"/>
+        ${slices}
+        <text x="${CX}" y="${CY-8}" text-anchor="middle" font-size="11" fill="#6b8f8f" font-family="sans-serif">Total gastos</text>
+        <text x="${CX}" y="${CY+12}" text-anchor="middle" font-size="14" font-weight="700" fill="#e24b4a" font-family="sans-serif">-${fmt(totalG)}</text>
+      </svg>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px;max-width:280px">
+        ${entries.map(([id,v])=>{const cat=catById(id);return `<span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text)"><span style="width:9px;height:9px;border-radius:50%;background:${cat.cor};display:inline-block"></span>${cat.nome}</span>`;}).join('')}
+      </div>`;
+    /* lista barras */
+    elCat.innerHTML=entries.map(([id,v])=>{
       const cat=catById(id);const pct=Math.round((v/maxC)*100);
+      const pctTotal=((v/totalG)*100).toFixed(1);
       return `<div class="cat-row"><div style="display:flex;align-items:center;flex:1">
-        <span class="cat-dot" style="background:${cat.cor}"></span><span style="font-size:13px;font-weight:500">${cat.nome}</span></div>
+        <span class="cat-dot" style="background:${cat.cor}"></span>
+        <span style="font-size:13px;font-weight:500">${cat.nome}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:6px">${pctTotal}%</span></div>
         <div style="text-align:right;min-width:90px"><div style="font-size:13px;font-weight:700;color:var(--danger)">-${fmt(v)}</div>
         <div class="bar-w"><div class="bar-f" style="width:${pct}%;background:${cat.cor}"></div></div></div></div>`;
     }).join('');
@@ -722,7 +830,7 @@ function abrirModalMov(){
   ['tx-conta-s','tx-conta-e','tx-orig'].forEach(id=>document.getElementById(id).innerHTML=opts);
   document.getElementById('tx-dest').innerHTML=E.contas.map((c,i)=>
     `<option value="${c.id}"${i===1?' selected':''}>${c.nome} · ${fmt(c.saldo)}</option>`).join('');
-  document.getElementById('tx-cat').innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  document.getElementById('tx-cat').innerHTML=CATS().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['tx-desc-s','tx-desc-e','tx-desc-t','tx-fonte'].forEach(id=>document.getElementById(id).value='');
   ['tx-val-s','tx-val-e','tx-val-t'].forEach(id=>document.getElementById(id).value='');
   setTipo('saida');
@@ -815,6 +923,82 @@ function guardarAjuste(){
   contaById(id).saldo=val;
   save();fechar('m-ajuste');renderAll();
 }
+/* ── Editar conta ─────────────────────────────────── */
+function abrirEditarConta(id){
+  const c=contaById(id);
+  document.getElementById('ec-nome').value=c.nome;
+  document.getElementById('ec-num').value=c.num||'';
+  document.getElementById('ec-id').value=id;
+  document.getElementById('m-editar-conta').classList.add('on');
+}
+function guardarEditarConta(){
+  const id=document.getElementById('ec-id').value;
+  const nome=document.getElementById('ec-nome').value.trim();
+  if(!nome){alert('Nome obrigatório.');return;}
+  const c=contaById(id);
+  c.nome=nome; c.num=document.getElementById('ec-num').value.trim();
+  save();fechar('m-editar-conta');renderAll();
+}
+
+/* ── Categorias ───────────────────────────────────── */
+const PALETA=[
+  {cor:'#009D98',cl:'#e0f5f5'},{cor:'#ba7517',cl:'#faeeda'},
+  {cor:'#3b6d11',cl:'#eaf3de'},{cor:'#534ab7',cl:'#eeedfe'},
+  {cor:'#185fa5',cl:'#e6f1fb'},{cor:'#993556',cl:'#fbeaf0'},
+  {cor:'#0f6e56',cl:'#e1f5ee'},{cor:'#5f5e5a',cl:'#f1efe8'},
+  {cor:'#b91c1c',cl:'#fee2e2'},{cor:'#b45309',cl:'#fef3c7'},
+  {cor:'#7c3aed',cl:'#ede9fe'},{cor:'#0369a1',cl:'#e0f2fe'},
+];
+let catCorSel='#009D98';
+
+function abrirModalCat(){
+  document.getElementById('cat-titulo').textContent='Nova categoria';
+  document.getElementById('cat-nome').value='';
+  document.getElementById('cat-id').value='';
+  catCorSel='#009D98';
+  renderPaleta();
+  document.getElementById('m-cat').classList.add('on');
+}
+function abrirEditarCat(id){
+  const c=CATS().find(x=>x.id===id);
+  if(!c)return;
+  document.getElementById('cat-titulo').textContent='Editar categoria';
+  document.getElementById('cat-nome').value=c.nome;
+  document.getElementById('cat-id').value=id;
+  catCorSel=c.cor;
+  renderPaleta();
+  document.getElementById('m-cat').classList.add('on');
+}
+function renderPaleta(){
+  document.getElementById('cat-cores').innerHTML=PALETA.map(p=>`
+    <div onclick="catCorSel='${p.cor}';renderPaleta()"
+      style="width:28px;height:28px;border-radius:50%;background:${p.cor};cursor:pointer;
+             border:3px solid ${catCorSel===p.cor?'#000':'transparent'};transition:border .15s"></div>
+  `).join('');
+}
+function guardarCat(){
+  const nome=document.getElementById('cat-nome').value.trim();
+  if(!nome){alert('Nome obrigatório.');return;}
+  const id=document.getElementById('cat-id').value;
+  const pal=PALETA.find(p=>p.cor===catCorSel)||PALETA[0];
+  if(!E.cats||!E.cats.length) E.cats=JSON.parse(JSON.stringify(CATS_DEFAULT));
+  if(id){
+    const c=E.cats.find(x=>x.id===id);
+    if(c){c.nome=nome;c.cor=pal.cor;c.cl=pal.cl;}
+  } else {
+    E.cats.push({id:'cat_'+Date.now(),nome,cor:pal.cor,cl:pal.cl});
+  }
+  save();fechar('m-cat');renderCats();
+}
+function apagarCat(id){
+  const emUso=E.txs.some(t=>t.cat===id);
+  if(emUso&&!confirm('Esta categoria está em uso em movimentos existentes. Apagar mesmo assim?'))return;
+  if(!confirm('Apagar categoria?'))return;
+  if(!E.cats||!E.cats.length) E.cats=JSON.parse(JSON.stringify(CATS_DEFAULT));
+  E.cats=E.cats.filter(c=>c.id!==id);
+  save();renderCats();
+}
+
 function fechar(id){document.getElementById(id).classList.remove('on');}
 document.querySelectorAll('.moverlay').forEach(el=>{
   el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('on');});
