@@ -25,13 +25,13 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
 .google-btn{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dadce0;border-radius:8px;padding:12px 24px;font-size:15px;font-weight:600;color:#3c4043;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:box-shadow .2s}
 .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .google-btn svg{width:20px;height:20px;flex-shrink:0}
-#sync-badge{position:fixed;top:68px;right:10px;z-index:300;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--muted);box-shadow:0 1px 6px rgba(0,0,0,.08);opacity:0;transition:opacity .3s;pointer-events:none}
+#sync-badge{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:rgba(255,255,255,.9);opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap}
 #sync-badge.show{opacity:1}
-#sync-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
-#sync-badge.syncing .dot{background:#f59e0b;animation:pulse .8s infinite}
-#sync-badge.ok .dot{background:var(--ok)}
-#sync-badge.err .dot{background:var(--danger)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+#sync-badge .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);flex-shrink:0;transition:background .3s}
+#sync-badge.syncing .dot{background:#fbbf24;animation:pulse .8s infinite}
+#sync-badge.ok .dot{background:#86efac}
+#sync-badge.err .dot{background:#fca5a5}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
 /* ---- HEADER ---- */
 .hdr{background:var(--primary);color:#fff;padding:16px 16px 12px;position:sticky;top:0;z-index:100}
@@ -157,7 +157,7 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
         <small id="hdr-email"></small>
       </div>
       <div class="hdr-user">
-        <button class="hdr-sync" onclick="syncDrive(true)" title="Sincronizar">⟳ Sync</button>
+        <div id="sync-badge"><span class="dot"></span><span id="sync-txt">Sincronizado</span></div>
         <img id="hdr-avatar" class="hdr-avatar" src="" alt="" onerror="this.style.display='none'">
       </div>
     </div>
@@ -222,7 +222,7 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
   <button class="fab" onclick="abrirModalMov()">+</button>
 </div>
 
-<div id="sync-badge"><span class="dot"></span><span id="sync-txt">Sincronizado</span></div>
+
 
 <!-- MODAL MOVIMENTO -->
 <div class="moverlay" id="m-mov">
