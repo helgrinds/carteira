@@ -25,8 +25,13 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
 .google-btn{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dadce0;border-radius:8px;padding:12px 24px;font-size:15px;font-weight:600;color:#3c4043;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:box-shadow .2s}
 .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .google-btn svg{width:20px;height:20px;flex-shrink:0}
-#sync-status{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;font-size:12px;padding:6px 14px;border-radius:20px;z-index:300;display:none;white-space:nowrap}
-#sync-status.show{display:block}
+#sync-badge{position:fixed;top:68px;right:10px;z-index:300;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--muted);box-shadow:0 1px 6px rgba(0,0,0,.08);opacity:0;transition:opacity .3s;pointer-events:none}
+#sync-badge.show{opacity:1}
+#sync-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+#sync-badge.syncing .dot{background:#f59e0b;animation:pulse .8s infinite}
+#sync-badge.ok .dot{background:var(--ok)}
+#sync-badge.err .dot{background:var(--danger)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 /* ---- HEADER ---- */
 .hdr{background:var(--primary);color:#fff;padding:16px 16px 12px;position:sticky;top:0;z-index:100}
@@ -217,8 +222,7 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
   <button class="fab" onclick="abrirModalMov()">+</button>
 </div>
 
-<!-- SYNC STATUS TOAST -->
-<div id="sync-status"></div>
+<div id="sync-badge"><span class="dot"></span><span id="sync-txt">Sincronizado</span></div>
 
 <!-- MODAL MOVIMENTO -->
 <div class="moverlay" id="m-mov">
@@ -318,29 +322,31 @@ let tipoActivo   = 'saida';
 let resumoMes    = null;
 
 /* ================================================================
-   GOOGLE AUTH  (token implícito via GIS)
+   GOOGLE AUTH  — renovação automática de token
    ================================================================ */
 let tokenClient;
+let tokenExpiry = 0;
 
 function initGoogle() {
-  /* aguardar script GIS carregar */
   if (typeof google === 'undefined') { setTimeout(initGoogle, 200); return; }
-
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
+    prompt: '',
     callback: onTokenReceived,
   });
-
-  /* tentar silent refresh se houver token guardado */
-  const saved = sessionStorage.getItem('gtoken');
-  if (saved) {
+  const saved    = sessionStorage.getItem('gtoken');
+  const savedExp = parseInt(sessionStorage.getItem('gtoken_exp') || '0', 10);
+  if (saved && savedExp > Date.now() + 60000) {
     accessToken = saved;
+    tokenExpiry = savedExp;
     fetchUserInfo().then(ok => {
       if (ok) { showApp(); loadFromDrive(); }
-      else     { accessToken = null; }
+      else    { accessToken = null; }
     });
   }
+  /* renovar token automaticamente a cada 45 minutos */
+  setInterval(() => { if (accessToken) tokenClient.requestAccessToken({ prompt: '' }); }, 45 * 60 * 1000);
 }
 
 function signIn() {
@@ -348,10 +354,25 @@ function signIn() {
 }
 
 function onTokenReceived(resp) {
-  if (resp.error) { console.error(resp); return; }
+  if (resp.error) { console.error('Token error:', resp); return; }
   accessToken = resp.access_token;
-  sessionStorage.setItem('gtoken', accessToken);
-  fetchUserInfo().then(() => { showApp(); loadFromDrive(); });
+  tokenExpiry = Date.now() + ((resp.expires_in || 3600) * 1000);
+  sessionStorage.setItem('gtoken',     accessToken);
+  sessionStorage.setItem('gtoken_exp', tokenExpiry.toString());
+  if (!document.getElementById('app').classList.contains('hidden') === false) {
+    fetchUserInfo().then(() => { showApp(); loadFromDrive(); });
+  }
+}
+
+async function getValidToken() {
+  if (tokenExpiry - Date.now() < 120000) {
+    await new Promise(resolve => {
+      const origCb = tokenClient.callback;
+      tokenClient.callback = r => { origCb && origCb(r); resolve(); };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+  }
+  return accessToken;
 }
 
 async function fetchUserInfo() {
@@ -361,8 +382,8 @@ async function fetchUserInfo() {
     });
     if (!r.ok) return false;
     const u = await r.json();
-    document.getElementById('hdr-email').textContent  = u.email || '';
-    document.getElementById('hdr-avatar').src         = u.picture || '';
+    document.getElementById('hdr-email').textContent = u.email || '';
+    document.getElementById('hdr-avatar').src        = u.picture || '';
     return true;
   } catch { return false; }
 }
@@ -373,35 +394,40 @@ function showApp() {
 }
 
 /* ================================================================
-   DRIVE  — procurar / criar / ler / escrever ficheiro
+   DRIVE
    ================================================================ */
 async function driveRequest(url, opts) {
-  const resp = await fetch(url, {
+  const token = await getValidToken();
+  let resp = await fetch(url, {
     ...opts,
-    headers: { Authorization: 'Bearer ' + accessToken, ...(opts.headers||{}) }
+    headers: { Authorization: 'Bearer ' + token, ...(opts.headers||{}) }
   });
+  if (resp.status === 401) {
+    /* forçar renovação e repetir */
+    await new Promise(resolve => {
+      tokenClient.callback = r => { onTokenReceived(r); resolve(); };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+    resp = await fetch(url, {
+      ...opts,
+      headers: { Authorization: 'Bearer ' + accessToken, ...(opts.headers||{}) }
+    });
+  }
   return resp;
 }
 
 async function findOrCreateFile() {
-  /* procurar ficheiro existente com o mesmo nome */
-  const q = encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
-  const r = await driveRequest(
+  const q    = encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
+  const r    = await driveRequest(
     `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {method:'GET'});
   const data = await r.json();
-  if (data.files && data.files.length > 0) {
-    driveFileId = data.files[0].id;
-    return 'found';
-  }
-  /* criar novo */
-  const meta = { name: FILE_NAME, mimeType: 'application/json' };
-  const cr = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+  if (data.files && data.files.length > 0) { driveFileId = data.files[0].id; return 'found'; }
+  const cr   = await driveRequest('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(meta)
+    body: JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' })
   });
-  const f = await cr.json();
-  driveFileId = f.id;
+  driveFileId = (await cr.json()).id;
   return 'created';
 }
 
@@ -410,76 +436,81 @@ async function loadFromDrive() {
   try {
     const status = await findOrCreateFile();
     if (status === 'created') {
-      /* ficheiro novo — usar dados de exemplo */
-      E = {
-        contas:[
-          {id:'c1',nome:'Conta 5450',    num:'**** 5450',saldo:40},
-          {id:'c2',nome:'Conta principal',num:'',        saldo:20},
-        ],
-        txs:[]
-      };
+      E = { contas:[], txs:[] };
       await writeToDrive();
       toast('Ficheiro criado no Drive ✓');
     } else {
-      /* ler conteúdo */
-      const r = await driveRequest(
+      const r    = await driveRequest(
         `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {method:'GET'});
       const text = await r.text();
       try { E = JSON.parse(text); } catch { E = {contas:[],txs:[]}; }
       toast('Dados carregados ✓');
     }
   } catch(e) {
-    toast('Erro ao aceder ao Drive ✗');
-    console.error(e);
-    /* fallback localStorage */
+    console.error('loadFromDrive error:', e);
+    toast('Erro ao carregar do Drive ✗');
     const local = localStorage.getItem('carteira_local');
-    if (local) E = JSON.parse(local);
+    if (local) { try { E = JSON.parse(local); } catch {} }
   }
   renderAll();
 }
 
 async function writeToDrive() {
-  if (!driveFileId || !accessToken) return;
+  if (!driveFileId) { console.warn('writeToDrive: sem fileId'); return false; }
   const json = JSON.stringify(E);
-  /* guardar também localmente como fallback */
   localStorage.setItem('carteira_local', json);
   try {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+    const r = await driveRequest(
+      `https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
       method: 'PATCH',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: json
     });
-  } catch(e) { console.error('Drive write error', e); }
+    if (!r.ok) {
+      console.error('Drive write failed:', r.status, await r.text());
+      toast('Erro ao guardar no Drive ✗');
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.error('Drive write exception:', e);
+    toast('Erro de rede ✗');
+    return false;
+  }
 }
 
-/* guardar com debounce de 1.5s para não fazer chamadas a cada keystroke */
 function save() {
   localStorage.setItem('carteira_local', JSON.stringify(E));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     toast('A guardar no Drive…');
-    await writeToDrive();
-    toast('Guardado no Drive ✓');
+    const ok = await writeToDrive();
+    if (ok) toast('Guardado no Drive ✓');
   }, 1500);
 }
 
 async function syncDrive(manual) {
-  if (manual) { toast('A sincronizar…'); await loadFromDrive(); }
+  if (!manual) return;
+  toast('A sincronizar…');
+  await loadFromDrive();
 }
 
 /* ================================================================
-   TOAST
+   SYNC BADGE
    ================================================================ */
 let toastTimer;
 function toast(msg) {
-  const el = document.getElementById('sync-status');
-  el.textContent = msg;
-  el.classList.add('show');
+  const badge = document.getElementById('sync-badge');
+  const txt   = document.getElementById('sync-txt');
+  txt.textContent = msg;
+  badge.classList.remove('syncing','ok','err');
+  if (msg.includes('…'))      badge.classList.add('syncing');
+  else if (msg.includes('✓')) badge.classList.add('ok');
+  else if (msg.includes('✗')) badge.classList.add('err');
+  badge.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  /* manter visível 3s após sucesso/erro, esconder após */
+  toastTimer = setTimeout(() => badge.classList.remove('show'), 3000);
 }
 
 /* ================================================================
