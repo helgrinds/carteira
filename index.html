@@ -259,6 +259,16 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
       <button class="btn btn-o btn-sm" onclick="abrirModalExtrato()">📄 Importar extrato</button>
     </div>
+    <!-- chips período -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px">
+      <button class="chip on" id="chip-tudo"     onclick="setPeriodo('tudo',this)">Tudo</button>
+      <button class="chip"    id="chip-hoje"     onclick="setPeriodo('hoje',this)">Hoje</button>
+      <button class="chip"    id="chip-semana"   onclick="setPeriodo('semana',this)">Esta semana</button>
+      <button class="chip"    id="chip-mes"      onclick="setPeriodo('mes',this)">Este mês</button>
+      <button class="chip"    id="chip-mes-ant"  onclick="setPeriodo('mes-ant',this)">Mês anterior</button>
+      <button class="chip"    id="chip-ano"      onclick="setPeriodo('ano',this)">Este ano</button>
+    </div>
+    <!-- filtros linha 2 -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <select id="f-conta" onchange="renderMov()" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--surface);color:var(--text)">
         <option value="">Todas as contas</option>
@@ -270,22 +280,15 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
         <option value="transferencia">Transferências</option>
       </select>
     </div>
-    <!-- filtro datas -->
-    <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:6px;align-items:center;margin-bottom:10px">
-      <input type="date" id="f-data-ini" onchange="renderMov()" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--surface);color:var(--text)">
-      <span style="font-size:11px;color:var(--muted);text-align:center">até</span>
-      <input type="date" id="f-data-fim" onchange="renderMov()" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--surface);color:var(--text)">
-      <button onclick="limparDatas()" title="Limpar datas" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);background:var(--surface);color:var(--muted);font-size:13px;cursor:pointer">✕</button>
+    <!-- filtro categoria -->
+    <div style="margin-bottom:10px">
+      <select id="f-cat" onchange="renderMov()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--surface);color:var(--text)">
+        <option value="">Todas as categorias</option>
+      </select>
     </div>
-    <!-- chips período rápido -->
-    <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:4px">
-      <button class="chip" onclick="setPeriodo('hoje')">Hoje</button>
-      <button class="chip" onclick="setPeriodo('semana')">Esta semana</button>
-      <button class="chip" onclick="setPeriodo('mes')">Este mês</button>
-      <button class="chip" onclick="setPeriodo('mes-ant')">Mês anterior</button>
-      <button class="chip" onclick="setPeriodo('ano')">Este ano</button>
-      <button class="chip" onclick="setPeriodo('tudo')">Tudo</button>
-    </div>
+    <!-- inputs data ocultos para setPeriodo -->
+    <input type="hidden" id="f-data-ini">
+    <input type="hidden" id="f-data-fim">
     <div id="lista-mov"></div>
   </div>
 
@@ -806,20 +809,27 @@ function txHTML(tx,readonly){
    MOVIMENTOS agrupados por mês
    ================================================================ */
 function renderMov(){
+  /* preencher select conta */
   const fCEl=document.getElementById('f-conta');
   const fCV=fCEl.value;
   fCEl.innerHTML='<option value="">Todas as contas</option>'+
     E.contas.map(c=>`<option value="${c.id}"${fCV===c.id?' selected':''}>${c.nome}</option>`).join('');
+  /* preencher select categoria alfabético */
+  const fCatEl=document.getElementById('f-cat');
+  const fCatV=fCatEl.value;
+  const catsOrdenadas=[...CATS()].sort((a,b)=>a.nome.localeCompare(b,'pt'));
+  fCatEl.innerHTML='<option value="">Todas as categorias</option>'+
+    catsOrdenadas.map(c=>`<option value="${c.id}"${fCatV===c.id?' selected':''}>${c.nome}</option>`).join('');
   let lista=[...E.txs].reverse();
-  const fTipo  = document.getElementById('f-tipo').value;
-  const fIni   = document.getElementById('f-data-ini').value; /* yyyy-mm-dd */
-  const fFim   = document.getElementById('f-data-fim').value;
-  if(fCV)  lista=lista.filter(t=>t.tipo==='transferencia'?(t.contaOrig===fCV||t.contaDest===fCV):t.conta===fCV);
+  const fTipo = document.getElementById('f-tipo').value;
+  const fIni  = document.getElementById('f-data-ini').value;
+  const fFim  = document.getElementById('f-data-fim').value;
+  const fCat  = fCatEl.value;
+  if(fCV)   lista=lista.filter(t=>t.tipo==='transferencia'?(t.contaOrig===fCV||t.contaDest===fCV):t.conta===fCV);
   if(fTipo) lista=lista.filter(t=>t.tipo===fTipo);
+  if(fCat)  lista=lista.filter(t=>t.cat===fCat);
   if(fIni)  lista=lista.filter(t=>ptParaISO(t.data)>=fIni);
   if(fFim)  lista=lista.filter(t=>ptParaISO(t.data)<=fFim);
-  /* highlight chips activos */
-  document.querySelectorAll('#pg-movimentos .chip').forEach(b=>b.classList.remove('on'));
   const el=document.getElementById('lista-mov');
   if(!lista.length){el.innerHTML='<div class="card"><div class="empty">Sem movimentos.</div></div>';return;}
   const grupos={};
@@ -860,7 +870,7 @@ function renderContas(){
 function renderCats(){
   const el=document.getElementById('lista-cats');
   if(!el) return;
-  const cats=CATS();
+  const cats=[...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
   if(!cats.length){el.innerHTML='<div class="empty">Sem categorias.</div>';return;}
   el.innerHTML=cats.map(c=>`
     <div class="card" style="margin-bottom:8px">
@@ -1015,7 +1025,7 @@ function abrirModalMov(){
   ['tx-conta-s','tx-conta-e','tx-orig'].forEach(id=>document.getElementById(id).innerHTML=opts);
   document.getElementById('tx-dest').innerHTML=E.contas.map((c,i)=>
     `<option value="${c.id}"${i===1?' selected':''}>${c.nome} · ${fmt(c.saldo)}</option>`).join('');
-  document.getElementById('tx-cat').innerHTML=CATS().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  document.getElementById('tx-cat').innerHTML=[...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['tx-desc-s','tx-desc-e','tx-desc-t','tx-fonte'].forEach(id=>document.getElementById(id).value='');
   ['tx-val-s','tx-val-e','tx-val-t'].forEach(id=>document.getElementById(id).value='');
   const hojeISO=new Date().toISOString().slice(0,10);
@@ -1424,7 +1434,7 @@ function abrirEditarTx(id) {
   if (!tx) return;
   document.getElementById('etx-id').value = id;
   const contaOpts = E.contas.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-  const catOpts   = CATS().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  const catOpts   = [...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['etx-bloco-saida','etx-bloco-entrada','etx-bloco-transf'].forEach(b=>
     document.getElementById(b).classList.add('hidden'));
   if (tx.tipo==='saida') {
@@ -1495,21 +1505,29 @@ function guardarEditarTx() {
 }
 
 /* ── Filtro por período ───────────────────────────── */
-function setPeriodo(p) {
+function setPeriodo(p, btn) {
   const hoje = new Date();
-  const iso  = d => d.toISOString().slice(0,10);
-  let ini, fim;
-  fim = iso(hoje);
+  /* formatar data local sem conversão UTC — evita desvio de 1 dia */
+  const isoLocal = d => [
+    d.getFullYear(),
+    String(d.getMonth()+1).padStart(2,'0'),
+    String(d.getDate()).padStart(2,'0')
+  ].join('-');
+  let ini='', fim='';
+  fim = isoLocal(hoje);
   if (p==='hoje') {
-    ini = iso(hoje);
+    ini = isoLocal(hoje);
   } else if (p==='semana') {
-    const d = new Date(hoje); d.setDate(hoje.getDate()-hoje.getDay()+1);
-    ini = iso(d);
+    /* semana começa na segunda-feira: getDay() 0=dom → trata como 7 */
+    const d = new Date(hoje);
+    const diaSemana = hoje.getDay() || 7; /* 1=seg … 7=dom */
+    d.setDate(hoje.getDate() - diaSemana + 1);
+    ini = isoLocal(d);
   } else if (p==='mes') {
-    ini = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    ini = isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
   } else if (p==='mes-ant') {
-    ini = iso(new Date(hoje.getFullYear(), hoje.getMonth()-1, 1));
-    fim = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0));
+    ini = isoLocal(new Date(hoje.getFullYear(), hoje.getMonth()-1, 1));
+    fim = isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 0));
   } else if (p==='ano') {
     ini = `${hoje.getFullYear()}-01-01`;
   } else {
@@ -1517,6 +1535,9 @@ function setPeriodo(p) {
   }
   document.getElementById('f-data-ini').value = ini;
   document.getElementById('f-data-fim').value = fim;
+  /* marcar chip activo */
+  document.querySelectorAll('#pg-movimentos .chip').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
   renderMov();
 }
 
