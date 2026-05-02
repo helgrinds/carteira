@@ -390,6 +390,37 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
   </div>
 </div>
 
+<!-- MODAL EDITAR MOVIMENTO -->
+<div class="moverlay" id="m-editar-tx">
+  <div class="modal">
+    <div class="modal-t">Editar movimento</div>
+    <div id="etx-bloco-saida">
+      <div class="fld"><label>Conta</label><select id="etx-conta-s"></select></div>
+      <div class="fld"><label>Categoria</label><select id="etx-cat"></select></div>
+      <div class="fld"><label>Descrição</label><input type="text" id="etx-desc"></div>
+      <div class="fld"><label>Valor (€)</label><input type="number" id="etx-valor" step="0.01" min="0.01" inputmode="decimal"></div>
+      <div class="fld"><label>Data</label><input type="date" id="etx-data"></div>
+    </div>
+    <div id="etx-bloco-entrada" class="hidden">
+      <div class="fld"><label>Conta</label><select id="etx-conta-e"></select></div>
+      <div class="fld"><label>Fonte</label><input type="text" id="etx-fonte"></div>
+      <div class="fld"><label>Descrição</label><input type="text" id="etx-desc-e"></div>
+      <div class="fld"><label>Valor (€)</label><input type="number" id="etx-valor-e" step="0.01" min="0.01" inputmode="decimal"></div>
+      <div class="fld"><label>Data</label><input type="date" id="etx-data-e"></div>
+    </div>
+    <div id="etx-bloco-transf" class="hidden">
+      <div class="fld"><label>Descrição</label><input type="text" id="etx-desc-t"></div>
+      <div class="fld"><label>Valor (€)</label><input type="number" id="etx-valor-t" step="0.01" min="0.01" inputmode="decimal"></div>
+      <div class="fld"><label>Data</label><input type="date" id="etx-data-t"></div>
+    </div>
+    <input type="hidden" id="etx-id">
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-o" style="flex:1" onclick="fechar('m-editar-tx')">Cancelar</button>
+      <button class="btn btn-p" style="flex:1" onclick="guardarEditarTx()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONTA -->
 <div class="moverlay" id="m-conta">
   <div class="modal">
@@ -731,26 +762,28 @@ function renderInicio(){
    HTML TRANSAÇÃO
    ================================================================ */
 function txHTML(tx,readonly){
-  const del=readonly?'':`<button class="tx-del" onclick="apagarTx('${tx.id}')">✕</button>`;
+  const acoes = readonly ? '' : `
+    <button class="tx-del" style="color:var(--primary);font-size:13px;padding:3px 6px" onclick="abrirEditarTx('${tx.id}')">✏️</button>
+    <button class="tx-del" onclick="apagarTx('${tx.id}')">✕</button>`;
   if(tx.tipo==='transferencia'){
     const o=contaById(tx.contaOrig),d=contaById(tx.contaDest);
     return `<div class="tx"><div class="tx-i">
       <div class="tx-desc">${tx.desc||'Transferência'}</div>
       <div class="tx-meta"><span class="pill pt">↔ Transf.</span> ${o?o.nome:'?'} → ${d?d.nome:'?'} · ${tx.data}</div>
-    </div><div style="display:flex;align-items:center"><span class="tx-val vt">${fmt(tx.valor)}</span>${del}</div></div>`;
+    </div><div style="display:flex;align-items:center"><span class="tx-val vt">${fmt(tx.valor)}</span>${acoes}</div></div>`;
   }
   if(tx.tipo==='entrada'){
     const c=contaById(tx.conta);
     return `<div class="tx"><div class="tx-i">
       <div class="tx-desc">${tx.desc||tx.fonte||'Income'}</div>
       <div class="tx-meta"><span class="pill pe">↑ Income</span>${tx.fonte?`<span class="pill" style="background:var(--ok-l);color:var(--ok)">${tx.fonte}</span>`:''} ${c?'· '+c.nome:''} · ${tx.data}</div>
-    </div><div style="display:flex;align-items:center"><span class="tx-val ve">+${fmt(tx.valor)}</span>${del}</div></div>`;
+    </div><div style="display:flex;align-items:center"><span class="tx-val ve">+${fmt(tx.valor)}</span>${acoes}</div></div>`;
   }
   const cat=catById(tx.cat),c=contaById(tx.conta);
   return `<div class="tx"><div class="tx-i">
     <div class="tx-desc">${tx.desc||cat.nome}</div>
     <div class="tx-meta"><span class="pill ps">↓ Gasto</span><span class="pill" style="background:${cat.cl};color:${cat.cor}">${cat.nome}</span> ${c?'· '+c.nome:''} · ${tx.data}</div>
-  </div><div style="display:flex;align-items:center"><span class="tx-val vs">-${fmt(tx.valor)}</span>${del}</div></div>`;
+  </div><div style="display:flex;align-items:center"><span class="tx-val vs">-${fmt(tx.valor)}</span>${acoes}</div></div>`;
 }
 
 /* ================================================================
@@ -1144,56 +1177,58 @@ async function analisarPDF() {
   document.getElementById('ext-preview').style.display = 'none';
   document.getElementById('ext-btn-analisar').disabled = true;
   try {
-    const prompt = `Analisa este extrato bancário e extrai TODOS os movimentos.
-Devolve APENAS um array JSON válido, sem mais texto, sem markdown, sem explicações.
-Formato exacto de cada objecto:
-{"data":"dd/mm/yyyy","desc":"DESCRICAO ORIGINAL","montante":valor_absoluto_positivo,"tipo":"saida" ou "entrada"}
-
-Regras:
-- tipo "entrada" se o montante no extrato for positivo (depósito, transferência recebida, TFI, TRF recebido)
-- tipo "saida" se o montante for negativo (compra, levantamento, pagamento)
-- montante é sempre positivo (valor absoluto)
-- data no formato dd/mm/yyyy
-- desc é a descrição original do extrato, sem alterações`;
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: extPdfB64 } },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
-    });
-
-    const data = await resp.json();
-    const txt  = (data.content||[]).map(b=>b.text||'').join('').trim();
-    /* limpar possível markdown */
-    const clean = txt.replace(/```json|```/g,'').trim();
-    const movs  = JSON.parse(clean);
-
-    extratoMov = movs.map(mv => ({
-      data:     mv.data,
-      desc:     mv.desc,
-      montante: Math.abs(parseFloat(mv.montante)),
-      tipo:     mv.tipo==='entrada'?'entrada':'saida',
-      cat:      mv.tipo==='saida' ? detectarCategoria(mv.desc) : ''
-    })).filter(mv => mv.montante > 0);
-
-    mostrarPreview();
+    /* extrair texto do PDF via pdf.js (corre no browser, sem CORS) */
+    const texto = await extrairTextoPDF(extPdfB64);
+    /* usar o mesmo parser de texto */
+    document.getElementById('ext-texto').value = texto;
+    analisarTexto();
   } catch(e) {
     console.error(e);
-    alert('Erro ao analisar o PDF: ' + e.message);
+    alert('Erro ao ler o PDF: ' + e.message + '\nTenta usar o modo Texto colando o conteúdo.');
   } finally {
     document.getElementById('ext-loading').style.display = 'none';
     document.getElementById('ext-btn-analisar').disabled = false;
   }
+}
+
+async function extrairTextoPDF(base64) {
+  /* carregar pdf.js dinamicamente */
+  if (!window.pdfjsLib) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  /* converter base64 → Uint8Array */
+  const bin  = atob(base64);
+  const arr  = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+
+  const pdf   = await pdfjsLib.getDocument({data: arr}).promise;
+  let texto   = '';
+  for (let p=1; p<=pdf.numPages; p++) {
+    const page    = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    /* reconstruir linhas agrupando items pela posição Y */
+    const items = content.items;
+    const linhas = {};
+    items.forEach(item => {
+      const y = Math.round(item.transform[5]);
+      if (!linhas[y]) linhas[y] = [];
+      linhas[y].push({x: item.transform[4], str: item.str});
+    });
+    /* ordenar por Y descendente (topo para baixo) e X */
+    const ys = Object.keys(linhas).map(Number).sort((a,b)=>b-a);
+    ys.forEach(y => {
+      const partes = linhas[y].sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ');
+      texto += partes + '\n';
+    });
+  }
+  return texto;
 }
 
 function analisarTexto() {
@@ -1340,6 +1375,82 @@ function apagarCat(id){
   if(!E.cats||!E.cats.length) E.cats=JSON.parse(JSON.stringify(CATS_DEFAULT));
   E.cats=E.cats.filter(c=>c.id!==id);
   save();renderCats();
+}
+
+/* ── Editar movimento ────────────────────────────── */
+function abrirEditarTx(id) {
+  const tx = E.txs.find(t=>t.id===id);
+  if (!tx) return;
+  document.getElementById('etx-id').value = id;
+  const contaOpts = E.contas.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  const catOpts   = CATS().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  ['etx-bloco-saida','etx-bloco-entrada','etx-bloco-transf'].forEach(b=>
+    document.getElementById(b).classList.add('hidden'));
+  if (tx.tipo==='saida') {
+    document.getElementById('etx-bloco-saida').classList.remove('hidden');
+    document.getElementById('etx-conta-s').innerHTML = contaOpts;
+    document.getElementById('etx-conta-s').value     = tx.conta||'';
+    document.getElementById('etx-cat').innerHTML     = catOpts;
+    document.getElementById('etx-cat').value         = tx.cat||'';
+    document.getElementById('etx-desc').value        = tx.desc||'';
+    document.getElementById('etx-valor').value       = tx.valor;
+    document.getElementById('etx-data').value        = ptParaISO(tx.data);
+  } else if (tx.tipo==='entrada') {
+    document.getElementById('etx-bloco-entrada').classList.remove('hidden');
+    document.getElementById('etx-conta-e').innerHTML = contaOpts;
+    document.getElementById('etx-conta-e').value     = tx.conta||'';
+    document.getElementById('etx-fonte').value       = tx.fonte||'';
+    document.getElementById('etx-desc-e').value      = tx.desc||'';
+    document.getElementById('etx-valor-e').value     = tx.valor;
+    document.getElementById('etx-data-e').value      = ptParaISO(tx.data);
+  } else {
+    document.getElementById('etx-bloco-transf').classList.remove('hidden');
+    document.getElementById('etx-desc-t').value  = tx.desc||'';
+    document.getElementById('etx-valor-t').value = tx.valor;
+    document.getElementById('etx-data-t').value  = ptParaISO(tx.data);
+  }
+  document.getElementById('m-editar-tx').classList.add('on');
+}
+
+function guardarEditarTx() {
+  const id = document.getElementById('etx-id').value;
+  const tx = E.txs.find(t=>t.id===id);
+  if (!tx) return;
+  /* reverter saldo antigo */
+  if (tx.tipo==='saida')    { const c=contaById(tx.conta);    if(c) c.saldo+=tx.valor; }
+  else if (tx.tipo==='entrada') { const c=contaById(tx.conta); if(c) c.saldo-=tx.valor; }
+  else {
+    const o=contaById(tx.contaOrig),d=contaById(tx.contaDest);
+    if(o) o.saldo+=tx.valor; if(d) d.saldo-=tx.valor;
+  }
+  /* aplicar novos valores */
+  if (tx.tipo==='saida') {
+    const val  = parseFloat(document.getElementById('etx-valor').value);
+    const cId  = document.getElementById('etx-conta-s').value;
+    if (!val||val<=0) { alert('Valor inválido.'); return; }
+    tx.conta = cId; tx.cat = document.getElementById('etx-cat').value;
+    tx.desc  = document.getElementById('etx-desc').value.trim();
+    tx.valor = val;
+    tx.data  = isoParaPt(document.getElementById('etx-data').value);
+    const c  = contaById(cId); if(c) c.saldo -= val;
+  } else if (tx.tipo==='entrada') {
+    const val = parseFloat(document.getElementById('etx-valor-e').value);
+    const cId = document.getElementById('etx-conta-e').value;
+    if (!val||val<=0) { alert('Valor inválido.'); return; }
+    tx.conta  = cId; tx.fonte = document.getElementById('etx-fonte').value.trim();
+    tx.desc   = document.getElementById('etx-desc-e').value.trim();
+    tx.valor  = val;
+    tx.data   = isoParaPt(document.getElementById('etx-data-e').value);
+    const c   = contaById(cId); if(c) c.saldo += val;
+  } else {
+    const val = parseFloat(document.getElementById('etx-valor-t').value);
+    if (!val||val<=0) { alert('Valor inválido.'); return; }
+    tx.desc  = document.getElementById('etx-desc-t').value.trim();
+    tx.valor = val; tx.data = isoParaPt(document.getElementById('etx-data-t').value);
+    const o=contaById(tx.contaOrig),d=contaById(tx.contaDest);
+    if(o) o.saldo-=val; if(d) d.saldo+=val;
+  }
+  save(); fechar('m-editar-tx'); renderAll();
 }
 
 function fechar(id){document.getElementById(id).classList.remove('on');}
