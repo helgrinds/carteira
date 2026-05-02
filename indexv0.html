@@ -256,9 +256,6 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
 
   <!-- MOVIMENTOS -->
   <div id="pg-movimentos" class="pg">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-      <button class="btn btn-o btn-sm" onclick="abrirModalExtrato()">📄 Importar extrato</button>
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <select id="f-conta" onchange="renderMov()" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;background:var(--surface);color:var(--text)">
         <option value="">Todas as contas</option>
@@ -320,14 +317,12 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
       <div class="fld"><label>Categoria</label><select id="tx-cat"></select></div>
       <div class="fld"><label>Descrição</label><input type="text" id="tx-desc-s" placeholder="Ex: Supermercado"></div>
       <div class="fld"><label>Valor (€)</label><input type="number" id="tx-val-s" placeholder="0,00" step="0.01" min="0.01" inputmode="decimal"></div>
-      <div class="fld"><label>Data</label><input type="date" id="tx-data-s"></div>
     </div>
     <div id="bloco-entrada" class="hidden">
       <div class="fld"><label>Conta onde entra</label><select id="tx-conta-e"></select></div>
       <div class="fld"><label>Fonte / origem</label><input type="text" id="tx-fonte" placeholder="Ex: Salário, Freelance…"></div>
       <div class="fld"><label>Descrição (opcional)</label><input type="text" id="tx-desc-e" placeholder="Ex: Salário março"></div>
       <div class="fld"><label>Valor (€)</label><input type="number" id="tx-val-e" placeholder="0,00" step="0.01" min="0.01" inputmode="decimal"></div>
-      <div class="fld"><label>Data</label><input type="date" id="tx-data-e"></div>
     </div>
     <div id="bloco-transferencia" class="hidden">
       <div class="fld"><label>Conta de origem</label><select id="tx-orig"></select></div>
@@ -339,53 +334,6 @@ body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-o" style="flex:1" onclick="fechar('m-mov')">Cancelar</button>
       <button class="btn btn-p" style="flex:1" onclick="guardarMov()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL IMPORTAR EXTRATO -->
-<div class="moverlay" id="m-extrato">
-  <div class="modal">
-    <div class="modal-t">Importar extrato</div>
-    <div class="fld">
-      <label>Conta de destino dos movimentos</label>
-      <select id="ext-conta"></select>
-    </div>
-    <!-- selector de método -->
-    <div class="subtabs" style="margin-bottom:14px">
-      <button class="stab on" id="stab-pdf" onclick="setExtMetodo('pdf')">📄 PDF</button>
-      <button class="stab" id="stab-txt" onclick="setExtMetodo('txt')">📋 Texto</button>
-    </div>
-    <!-- upload PDF -->
-    <div id="ext-bloco-pdf">
-      <div class="fld">
-        <label>Selecciona o PDF do extrato</label>
-        <div id="ext-drop" style="border:2px dashed var(--border);border-radius:var(--rs);padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="document.getElementById('ext-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor=''" ondrop="extDrop(event)">
-          <div style="font-size:28px;margin-bottom:6px">📄</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text)">Clica ou arrasta o PDF aqui</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px" id="ext-file-nome">Nenhum ficheiro seleccionado</div>
-        </div>
-        <input type="file" id="ext-file" accept=".pdf" style="display:none" onchange="extFileSelected(this)">
-      </div>
-    </div>
-    <!-- texto manual -->
-    <div id="ext-bloco-txt" class="hidden">
-      <div class="fld">
-        <label>Cola o texto do extrato aqui</label>
-        <textarea id="ext-texto" rows="7" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--rs);font-size:12px;font-family:monospace;resize:vertical;background:var(--surface);color:var(--text)" placeholder="Copia o texto do PDF do banco e cola aqui…"></textarea>
-      </div>
-    </div>
-    <div id="ext-preview" style="margin-bottom:12px;display:none">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Preview — <span id="ext-count">0</span> movimentos encontrados</div>
-      <div id="ext-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rs);padding:6px 10px"></div>
-    </div>
-    <div id="ext-loading" style="display:none;text-align:center;padding:12px;color:var(--muted);font-size:13px">
-      <span style="animation:pulse 1s infinite">⏳</span> A analisar o PDF com IA…
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-o" style="flex:1" onclick="fechar('m-extrato')">Cancelar</button>
-      <button class="btn btn-ghost" style="flex:1;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary)" id="ext-btn-analisar" onclick="analisarExtrato()">Analisar</button>
-      <button class="btn btn-p" style="flex:1" id="ext-btn-importar" onclick="importarExtrato()" disabled>Importar</button>
     </div>
   </div>
 </div>
@@ -950,8 +898,6 @@ function abrirModalMov(){
   document.getElementById('tx-cat').innerHTML=CATS().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['tx-desc-s','tx-desc-e','tx-desc-t','tx-fonte'].forEach(id=>document.getElementById(id).value='');
   ['tx-val-s','tx-val-e','tx-val-t'].forEach(id=>document.getElementById(id).value='');
-  const hojeISO=new Date().toISOString().slice(0,10);
-  ['tx-data-s','tx-data-e'].forEach(id=>document.getElementById(id).value=hojeISO);
   setTipo('saida');
   document.getElementById('m-mov').classList.add('on');
 }
@@ -981,11 +927,9 @@ function guardarMov(){
     if(!val||val<=0){alert('Valor inválido.');return;}
     const cId=document.getElementById('tx-conta-e').value;
     contaById(cId).saldo+=val;
-    const dataE=document.getElementById('tx-data-e').value;
     E.txs.push({id:Date.now()+'',tipo:'entrada',conta:cId,
       fonte:document.getElementById('tx-fonte').value.trim()||'Income',
-      desc:document.getElementById('tx-desc-e').value.trim(),valor:val,
-      data:dataE?isoParaPt(dataE):hoje()});
+      desc:document.getElementById('tx-desc-e').value.trim(),valor:val,data:hoje()});
   } else {
     const val=parseFloat(document.getElementById('tx-val-s').value);
     if(!val||val<=0){alert('Valor inválido.');return;}
@@ -993,11 +937,9 @@ function guardarMov(){
     const conta=contaById(cId);
     if(conta.saldo<val&&!confirm(`Saldo insuficiente em "${conta.nome}" (${fmt(conta.saldo)}). Continuar?`))return;
     conta.saldo-=val;
-    const dataS=document.getElementById('tx-data-s').value;
     E.txs.push({id:Date.now()+'',tipo:'saida',conta:cId,
       cat:document.getElementById('tx-cat').value,
-      desc:document.getElementById('tx-desc-s').value.trim(),valor:val,
-      data:dataS?isoParaPt(dataS):hoje()});
+      desc:document.getElementById('tx-desc-s').value.trim(),valor:val,data:hoje()});
   }
   save(); fechar('m-mov'); renderAll();
 }
@@ -1046,226 +988,6 @@ function guardarAjuste(){
   contaById(id).saldo=val;
   save();fechar('m-ajuste');renderAll();
 }
-/* ── Conversão de datas ──────────────────────────── */
-function isoParaPt(iso){ const[a,m,d]=iso.split('-'); return `${d}/${m}/${a}`; }
-function ptParaISO(pt){ const[d,m,a]=pt.split('/'); return `${a}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
-
-/* ── Importar Extrato ─────────────────────────────── */
-/* mapa de palavras-chave → categoria */
-const CAT_MAP = [
-  {p:['MERCADONA','CONTINENTE','LIDL','PINGO','INTERMARCHE','JUMBO','ALDI','MINIPRECO','KAUFLAND','SUPERMERCADO','PADARIA','PASTELARIA','PAD CONF','PIZZERI','KEBAB','CAFETER','MCDONALDS','BURGER','FOGO DE CHAO','TEMPLESUSHI','LOS PEPES','TL BRAGA','OS EUSEBIOS','AMIGO','CAFETERIA','BAR TOX','NOVO SECULO','RITINHA','MAXIM'],cat:'alimentacao'},
-  {p:['REPSOL','GALP','BP','SHELL','CEPSA','PARKING','AUTOCARRO','CP ','UBER','BOLT','CARRIS','METRO '],cat:'transporte'},
-  {p:['FARMACIA','CLINICA','SAUDE','HOSPITAL','MEDICO','TROFA SAUDE','CLIN SANTA','CENTRO CLINICO','ZEN BRAGA','DENTISTA','OPTIKA'],cat:'saude'},
-  {p:['DECATHLON','GREAT SPORTS','TOP-PADEL','PADEL','SPORT','GYM','FITNESS','NOS CINEMAS','CINEMA','PLAYSTATION','STEAM','NETFLIX','SPOTIFY','GOOGLE PLAY','YOUTUBE','HBO','DISNEY','PRIME VIDEO'],cat:'lazer'},
-  {p:['RENDA','CONDOMINIO','AGUA ','LUZ ','GAS ','EDP ','AGUAS ','BOOKING','AIRBNB','VOLTA '],cat:'casa'},
-  {p:['VODAFONE','NOS ','MEO ','NOWO','GOOGLE GOOGLE','CLAUDE.AI','ANTHROPIC','MICROSOFT','APPLE.COM','AMAZON','ADOBE'],cat:'educacao'},
-  {p:['MANUT CONTA','COMISSAO','BX VALOR','CARREGAMENTO WALLET','TRF CXDAPP','TRF MBWAY','MBWAY WOO','LEVANTAMENTO','TRF Xtb'],cat:'outros'},
-];
-
-function detectarCategoria(desc) {
-  const d = desc.toUpperCase();
-  for (const r of CAT_MAP) {
-    if (r.p.some(p => d.includes(p))) return r.cat;
-  }
-  return ''; /* sem categoria */
-}
-
-function detectarTipo(desc, montante) {
-  if (montante > 0) {
-    const d = desc.toUpperCase();
-    /* entradas típicas: TFI, TRF recebido, salário */
-    if (d.startsWith('TFI ') || d.startsWith('TRF ') || d.includes('SALARIO') || d.includes('VENCIMENTO')) return 'entrada';
-    return 'entrada';
-  }
-  return 'saida';
-}
-
-let extratoMov = [];
-
-/* extrato — estado */
-let extMetodo   = 'pdf';
-let extPdfB64   = null;
-let extPdfNome  = '';
-
-function setExtMetodo(m) {
-  extMetodo = m;
-  document.getElementById('ext-bloco-pdf').classList.toggle('hidden', m!=='pdf');
-  document.getElementById('ext-bloco-txt').classList.toggle('hidden', m!=='txt');
-  document.getElementById('stab-pdf').classList.toggle('on', m==='pdf');
-  document.getElementById('stab-txt').classList.toggle('on', m==='txt');
-}
-
-function extDrop(e) {
-  e.preventDefault();
-  document.getElementById('ext-drop').style.borderColor='';
-  const f = e.dataTransfer.files[0];
-  if (f && f.type==='application/pdf') carregarPDF(f);
-}
-
-function extFileSelected(input) {
-  if (input.files[0]) carregarPDF(input.files[0]);
-}
-
-function carregarPDF(file) {
-  extPdfNome = file.name;
-  document.getElementById('ext-file-nome').textContent = file.name;
-  document.getElementById('ext-drop').style.borderColor = 'var(--primary)';
-  const reader = new FileReader();
-  reader.onload = e => { extPdfB64 = e.target.result.split(',')[1]; };
-  reader.readAsDataURL(file);
-}
-
-function abrirModalExtrato() {
-  if (!E.contas.length) { alert('Cria pelo menos uma conta primeiro.'); return; }
-  document.getElementById('ext-conta').innerHTML = E.contas.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-  document.getElementById('ext-texto').value = '';
-  document.getElementById('ext-preview').style.display = 'none';
-  document.getElementById('ext-loading').style.display = 'none';
-  document.getElementById('ext-btn-importar').disabled = true;
-  document.getElementById('ext-file-nome').textContent = 'Nenhum ficheiro seleccionado';
-  document.getElementById('ext-drop').style.borderColor = '';
-  document.getElementById('ext-file').value = '';
-  extPdfB64 = null; extPdfNome = ''; extratoMov = [];
-  setExtMetodo('pdf');
-  document.getElementById('m-extrato').classList.add('on');
-}
-
-async function analisarExtrato() {
-  if (extMetodo === 'pdf') {
-    if (!extPdfB64) { alert('Selecciona um PDF primeiro.'); return; }
-    await analisarPDF();
-  } else {
-    analisarTexto();
-  }
-}
-
-async function analisarPDF() {
-  document.getElementById('ext-loading').style.display = 'block';
-  document.getElementById('ext-preview').style.display = 'none';
-  document.getElementById('ext-btn-analisar').disabled = true;
-  try {
-    const prompt = `Analisa este extrato bancário e extrai TODOS os movimentos.
-Devolve APENAS um array JSON válido, sem mais texto, sem markdown, sem explicações.
-Formato exacto de cada objecto:
-{"data":"dd/mm/yyyy","desc":"DESCRICAO ORIGINAL","montante":valor_absoluto_positivo,"tipo":"saida" ou "entrada"}
-
-Regras:
-- tipo "entrada" se o montante no extrato for positivo (depósito, transferência recebida, TFI, TRF recebido)
-- tipo "saida" se o montante for negativo (compra, levantamento, pagamento)
-- montante é sempre positivo (valor absoluto)
-- data no formato dd/mm/yyyy
-- desc é a descrição original do extrato, sem alterações`;
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: extPdfB64 } },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
-    });
-
-    const data = await resp.json();
-    const txt  = (data.content||[]).map(b=>b.text||'').join('').trim();
-    /* limpar possível markdown */
-    const clean = txt.replace(/```json|```/g,'').trim();
-    const movs  = JSON.parse(clean);
-
-    extratoMov = movs.map(mv => ({
-      data:     mv.data,
-      desc:     mv.desc,
-      montante: Math.abs(parseFloat(mv.montante)),
-      tipo:     mv.tipo==='entrada'?'entrada':'saida',
-      cat:      mv.tipo==='saida' ? detectarCategoria(mv.desc) : ''
-    })).filter(mv => mv.montante > 0);
-
-    mostrarPreview();
-  } catch(e) {
-    console.error(e);
-    alert('Erro ao analisar o PDF: ' + e.message);
-  } finally {
-    document.getElementById('ext-loading').style.display = 'none';
-    document.getElementById('ext-btn-analisar').disabled = false;
-  }
-}
-
-function analisarTexto() {
-  const texto = document.getElementById('ext-texto').value;
-  extratoMov = [];
-  const linhas = texto.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  linhas.forEach(linha => {
-    const re = /^(\d{2}-\d{2}-\d{4})\s+\d{2}-\d{2}-\d{4}\s+(.+?)\s+([-\d.,]+)(?:\s+[\d.,]+)?$/;
-    const m = re.exec(linha);
-    if (!m) return;
-    const data = m[1].replace(/-/g,'/');
-    const desc = m[2].trim();
-    const val  = parseFloat(m[3].replace(/\./g,'').replace(',','.'));
-    if (isNaN(val)) return;
-    const tipo = val > 0 ? 'entrada' : 'saida';
-    extratoMov.push({ data, desc, montante: Math.abs(val), tipo, cat: tipo==='saida'?detectarCategoria(desc):'' });
-  });
-  mostrarPreview();
-}
-
-function mostrarPreview() {
-  const lista = document.getElementById('ext-lista');
-  document.getElementById('ext-count').textContent = extratoMov.length;
-  if (!extratoMov.length) {
-    lista.innerHTML = '<div class="empty" style="padding:12px">Nenhum movimento reconhecido.</div>';
-    document.getElementById('ext-btn-importar').disabled = true;
-  } else {
-    const cats = CATS();
-    lista.innerHTML = extratoMov.map(mv => {
-      const catNome = mv.cat ? (cats.find(c=>c.id===mv.cat)||{nome:mv.cat}).nome : '—';
-      const cor   = mv.tipo==='saida'?'var(--danger)':'var(--ok)';
-      const sinal = mv.tipo==='saida'?'-':'+';
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);gap:8px">
-        <div style="min-width:0;flex:1">
-          <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${mv.desc}</div>
-          <div style="font-size:10px;color:var(--muted)">${mv.data} · <span style="color:${mv.cat?'var(--primary)':'var(--muted)'}">${catNome}</span></div>
-        </div>
-        <div style="font-size:12px;font-weight:700;color:${cor};white-space:nowrap">${sinal}${fmt(mv.montante)}</div>
-      </div>`;
-    }).join('');
-    document.getElementById('ext-btn-importar').disabled = false;
-  }
-  document.getElementById('ext-preview').style.display = 'block';
-}
-
-function importarExtrato() {
-  if (!extratoMov.length) return;
-  const contaId = document.getElementById('ext-conta').value;
-  const conta   = contaById(contaId);
-  let importados = 0;
-  extratoMov.forEach(mv => {
-    /* verificar duplicado por data+desc+valor */
-    const dup = E.txs.some(t =>
-      t.data===mv.data && Math.abs(t.valor-mv.montante)<0.01 &&
-      (t.desc||'').toUpperCase()===mv.desc.toUpperCase()
-    );
-    if (dup) return;
-    if (mv.tipo==='saida') {
-      conta.saldo -= mv.montante;
-      E.txs.push({id:Date.now()+'_'+importados,tipo:'saida',conta:contaId,
-        cat:mv.cat, desc:mv.desc, valor:mv.montante, data:mv.data});
-    } else {
-      conta.saldo += mv.montante;
-      E.txs.push({id:Date.now()+'_'+importados,tipo:'entrada',conta:contaId,
-        fonte:'Extrato', desc:mv.desc, valor:mv.montante, data:mv.data});
-    }
-    importados++;
-  });
-  save(); fechar('m-extrato'); renderAll();
-  toast(`${importados} movimentos importados ✓`);
-}
-
 /* ── Editar conta ─────────────────────────────────── */
 function abrirEditarConta(id){
   const c=contaById(id);
