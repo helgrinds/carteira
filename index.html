@@ -522,7 +522,9 @@ const CATS_DEFAULT = [
   {id:'educacao',   nome:'Educação',   cor:'#0f6e56',cl:'#e1f5ee'},
   {id:'outros',     nome:'Outros',     cor:'#5f5e5a',cl:'#f1efe8'},
 ];
-function CATS(){ return E.cats || CATS_DEFAULT; }
+function CATS(){ return E.cats && E.cats.length ? E.cats : CATS_DEFAULT; }
+function catsAlfabet(){ return [...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')); }
+function catOpts(selId){ return '<option value="">-- Sem categoria --</option>'+catsAlfabet().map(c=>`<option value="${c.id}">${c.nome}</option>`).join(''); }
 
 /* ================================================================
    ESTADO
@@ -817,9 +819,8 @@ function renderMov(){
   /* preencher select categoria alfabético */
   const fCatEl=document.getElementById('f-cat');
   const fCatV=fCatEl.value;
-  const catsOrdenadas=[...CATS()].sort((a,b)=>a.nome.localeCompare(b,'pt'));
   fCatEl.innerHTML='<option value="">Todas as categorias</option>'+
-    catsOrdenadas.map(c=>`<option value="${c.id}"${fCatV===c.id?' selected':''}>${c.nome}</option>`).join('');
+    catsAlfabet().map(c=>`<option value="${c.id}"${fCatV===c.id?' selected':''}>${c.nome}</option>`).join('');
   let lista=[...E.txs].reverse();
   const fTipo = document.getElementById('f-tipo').value;
   const fIni  = document.getElementById('f-data-ini').value;
@@ -870,7 +871,7 @@ function renderContas(){
 function renderCats(){
   const el=document.getElementById('lista-cats');
   if(!el) return;
-  const cats=[...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+  const cats=catsAlfabet();
   if(!cats.length){el.innerHTML='<div class="empty">Sem categorias.</div>';return;}
   el.innerHTML=cats.map(c=>`
     <div class="card" style="margin-bottom:8px">
@@ -1025,7 +1026,7 @@ function abrirModalMov(){
   ['tx-conta-s','tx-conta-e','tx-orig'].forEach(id=>document.getElementById(id).innerHTML=opts);
   document.getElementById('tx-dest').innerHTML=E.contas.map((c,i)=>
     `<option value="${c.id}"${i===1?' selected':''}>${c.nome} · ${fmt(c.saldo)}</option>`).join('');
-  document.getElementById('tx-cat').innerHTML=[...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  document.getElementById('tx-cat').innerHTML='<option value="">-- Sem categoria --</option>'+catsAlfabet().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['tx-desc-s','tx-desc-e','tx-desc-t','tx-fonte'].forEach(id=>document.getElementById(id).value='');
   ['tx-val-s','tx-val-e','tx-val-t'].forEach(id=>document.getElementById(id).value='');
   const hojeISO=new Date().toISOString().slice(0,10);
@@ -1301,7 +1302,7 @@ function mostrarPreview() {
     lista.innerHTML = '<div class="empty" style="padding:12px">Nenhum movimento reconhecido.</div>';
     document.getElementById('ext-btn-importar').disabled = true;
   } else {
-    const cats = CATS();
+    const cats = catsAlfabet();
     lista.innerHTML = extratoMov.map(mv => {
       const catNome = mv.cat ? (cats.find(c=>c.id===mv.cat)||{nome:mv.cat}).nome : '—';
       const cor   = mv.tipo==='saida'?'var(--danger)':'var(--ok)';
@@ -1434,7 +1435,7 @@ function abrirEditarTx(id) {
   if (!tx) return;
   document.getElementById('etx-id').value = id;
   const contaOpts = E.contas.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-  const catOpts   = [...CATS()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  const catOpts   = '<option value="">-- Sem categoria --</option>'+catsAlfabet().map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   ['etx-bloco-saida','etx-bloco-entrada','etx-bloco-transf'].forEach(b=>
     document.getElementById(b).classList.add('hidden'));
   if (tx.tipo==='saida') {
